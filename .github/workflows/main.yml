@@ -1,0 +1,53 @@
+name: 'CI/CD'
+
+on:
+  workflow_dispatch: { }
+
+  push:
+    branches: [ 'main' ]
+  
+  pull_request:
+    branches: [ 'main' ]
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  config:
+    runs-on: 'ubuntu-24.04'
+    permissions: { }
+    outputs:
+      linux-runner-image: ${{ steps.constants.outputs.linux-runner-image }}
+    steps:
+      - name: 'Define constants'
+        id: 'constants'
+        run: |
+          echo "linux-runner-image=ubuntu-24.04" >> $GITHUB_OUTPUT
+    
+  lint-commits:
+    runs-on: ${{ needs.config.outputs.linux-runner-image }}
+    permissions:
+      contents: 'read'
+    needs: [ 'config' ]
+    steps:
+      - name: 'Checkout code'
+        uses: 'actions/checkout@v6'
+        with:
+          fetch-depth: 0
+      
+      - name: 'Setup node'
+        uses: 'actions/setup-node@v6'
+        with:
+          node-version: 24
+      
+      - name: 'Setup commit linter'
+        run: npm install -D @commitlint/cli @commitlint/config-conventional
+      
+      - name: 'Lint commits'
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            npx commitlint --from ${{ github.before }} --to ${{ github.after }} --verbose
+          else
+            npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+          fi
