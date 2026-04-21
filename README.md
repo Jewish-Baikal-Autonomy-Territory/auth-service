@@ -1,4 +1,4 @@
-# 📋 Auth Service
+# 🔑 Auth Service
 
 ![CI](https://github.com/Jewish-Baikal-Autonomy-Territory/auth-service/actions/workflows/main.yml/badge.svg)
 ![Coverage](https://codecov.io/gh/Jewish-Baikal-Autonomy-Territory/auth-service/branch/main/graph/badge.svg)
