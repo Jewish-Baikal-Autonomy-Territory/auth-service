@@ -1,6 +1,7 @@
 package org.example.ai_auth_service.services;
 
 import lombok.RequiredArgsConstructor;
+import org.example.ai_auth_service.dto.ChangePasswordRequest;
 import org.example.ai_auth_service.dto.JwtAuthenticationResponse;
 import org.example.ai_auth_service.dto.SignInRequest;
 import org.example.ai_auth_service.dto.SignUpRequest;
@@ -12,6 +13,7 @@ import org.example.ai_auth_service.repository.JwtRepository;
 import org.example.ai_auth_service.repository.UserVerificationRepository;
 import org.example.ai_auth_service.util.VerificationCodeGenerator;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -67,6 +69,35 @@ public class AuthenticationService {
 
         return new JwtAuthenticationResponse(jwt);
     }
+
+    public JwtAuthenticationResponse changePassword(ChangePasswordRequest request) {
+        boolean valid = passwordEncoder.matches(request.getOldPassword(), request.getNewPassword());
+        if (!valid) {
+            String oldPassword = request.getOldPassword();
+            boolean verify = userService.verifyPassword(request.getToken().getUser().getEmail(), oldPassword);
+            if (verify) {
+                String newPassword = request.getNewPassword();
+                String confirmeedNewPassword = request.getConfirmedNewPassword();
+                if (newPassword.equals(confirmeedNewPassword)) {
+                    var existing = userService.getByEmail(request.getToken().getUser().getEmail());
+                    existing.setPassword(newPassword);
+                    userService.save(existing);
+                } else {
+                    throw new AuthenticationServiceException("New Passwords do not match");
+                }
+            } else {
+                throw new AuthenticationServiceException("Old Password do not match");
+            }
+        } else {
+            throw new AuthenticationServiceException("Old Passwords do not match");
+        }
+        var user = userService.getByEmail(request.getToken().getUser().getEmail());
+        var jwt = jwtService.generateToken(user.getUsername());
+        saveJwtToken(jwt, user);
+
+        return new JwtAuthenticationResponse(jwt);
+    }
+
 
     public boolean verifyEmail(String email, String code) {
         boolean valid = verificationService.verifyCode(email, code);

@@ -52,3 +52,6 @@ logging:
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${TOKEN_TTL}
+grpc:
+  server:
+    port: 9090

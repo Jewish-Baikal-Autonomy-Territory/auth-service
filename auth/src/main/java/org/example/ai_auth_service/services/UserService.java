@@ -6,10 +6,10 @@ import org.example.ai_auth_service.repository.JwtRepository;
 import org.example.ai_auth_service.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 @Component
 public class UserService {
@@ -49,6 +49,12 @@ public class UserService {
     public User getCurrentUser() {
         var username = SecurityContextHolder.getContext().getAuthentication().getName();
         return getByUsername(username);
+    }
+
+    public boolean verifyPassword(String email, String rawPassword) {
+        User user = repository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        return new BCryptPasswordEncoder().matches(rawPassword, user.getPassword());
     }
 
     @Deprecated

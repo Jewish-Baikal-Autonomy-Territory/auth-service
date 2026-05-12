@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+import "google/api/field_behavior.proto";
+
+package auth;
+
+option java_multiple_files = true;
+option java_package = "org.example.ai_auth_service.proto.auth";
+option go_package = "github.com/Jewish-Baikal-Autonomy-Territory/auth-service/internal/api/grpc/auth";
+
+message RegisterRequest {
+  string email = 1 [
+    json_name = "email",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string password = 2 [
+    json_name = "password",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string phone_number = 3 [
+    json_name = "phone_number",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string first_name = 4 [
+    json_name = "first_name",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string last_name = 5 [
+    json_name = "last_name",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string middle_name = 6 [
+    json_name = "middle_name"
+  ];
+}

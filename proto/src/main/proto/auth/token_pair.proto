@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+import "google/api/field_behavior.proto";
+
+package auth;
+
+option java_multiple_files = true;
+option java_package = "org.example.ai_auth_service.proto.auth";
+option go_package = "github.com/Jewish-Baikal-Autonomy-Territory/auth-service/internal/api/grpc/auth";
+
+message TokenPair {
+  string access_token = 1 [
+    json_name = "access_token",
+    (google.api.field_behavior) = REQUIRED
+  ];
+
+  string refresh_token = 2 [
+    json_name = "refresh_token",
+    (google.api.field_behavior) = REQUIRED
+  ];
+}
