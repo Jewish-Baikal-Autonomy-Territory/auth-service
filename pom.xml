@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.5</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -27,8 +27,8 @@
         <revision>0.0.1</revision>
         <java.version>25</java.version>
         <maven.version>3.9.12</maven.version>
-        <springdoc.version>3.0.1</springdoc.version>
-        <jjwt.version>0.12.3</jjwt.version>
+        <springdoc.version>3.0.3</springdoc.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <pmd.version>7.21.0</pmd.version>
         <spotbugs.version>4.9.8</spotbugs.version>
