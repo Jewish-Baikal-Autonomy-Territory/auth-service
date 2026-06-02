@@ -14,7 +14,7 @@ public class UserRegisteredConsumer {
     @Autowired
     private UserService userService;
 
-    @KafkaListener(topics = "user-registered", groupId = "auth-service-group")
+    @KafkaListener(topics = "${TOPIC_USER_REGISTERED}", groupId = "auth-service-group")
     public void consumeUserRegistered(UserRegisteredEvent event) {
         log.info("User registered: {}", event.getEmail());
     }

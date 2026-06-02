@@ -13,7 +13,7 @@ public class EmailVerificationConsumer {
     @Autowired
     private EmailService emailService;
 
-    @KafkaListener(topics = "email-verification", groupId = "auth-service-group")
+    @KafkaListener(topics = "${TOPIC_EMAIL_VERIFICATION}", groupId = "auth-service-group")
     public void consumeEmailVerification(EmailVerificationEvent event) {
         emailService.sendVerificationEmail(event.getEmail(), event.getVerificationCode());
     }

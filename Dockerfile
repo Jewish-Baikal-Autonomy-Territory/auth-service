@@ -1,4 +1,4 @@
-FROM maven:3.9-eclipse-temurin-21 AS builder
+FROM maven:3.9-eclipse-temurin-25 AS builder
 LABEL authors="ha1t0"
 WORKDIR /app
 
@@ -10,9 +10,9 @@ RUN mvn dependency:go-offline -B
 
 COPY . .
 
-RUN mvn clean package -DskipTests -pl auth -am
+RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 

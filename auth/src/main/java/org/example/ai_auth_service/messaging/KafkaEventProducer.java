@@ -11,13 +11,16 @@ import org.springframework.stereotype.Component;
 @Component
 public class KafkaEventProducer {
 
-    @Autowired
-    private KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static final String TOPIC_EMAIL_VERIFICATION = "email-verification";
-    private static final String TOPIC_USER_REGISTERED = "user-registered";
-    private static final String TOPIC_USER_LOGIN = "user-login";
-    private static final String TOPIC_PASSWORD_CHANGED = "password-changed";
+    public KafkaEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    private static final String TOPIC_EMAIL_VERIFICATION = "${TOPIC_EMAIL_VERIFICATION}";
+    private static final String TOPIC_USER_REGISTERED = "${TOPIC_USER_REGISTERED}";
+    private static final String TOPIC_USER_LOGIN = "${TOPIC_USER_LOGIN}";
+    private static final String TOPIC_PASSWORD_CHANGED = "${TOPIC_PASSWORD_CHANGED}";
 
     public void sendEmailVerificationEvent(EmailVerificationEvent event) {
         kafkaTemplate.send(TOPIC_EMAIL_VERIFICATION, event.getEmail(), event);
