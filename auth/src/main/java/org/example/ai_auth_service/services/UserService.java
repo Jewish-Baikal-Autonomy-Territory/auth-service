@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Component;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -32,13 +33,21 @@ public class UserService {
         return save(user);
     }
 
-    public User getByUsername(String phoneNumber) {
-        return repository.findByPhoneNumber(phoneNumber)
+    public User singinOAuth(OAuth2User oAuth2User) {
+        User user = new User();
+        user.setEmail(oAuth2User.getAttribute("email"));
+        user.setPassword(oAuth2User.getAttribute("password"));
+
+        return save(user);
+    }
+
+    public User getByUsername(String email) {
+        return repository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     public User getByEmail(String email) {
-        return repository.findByEmail(email)
+        return repository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found by email"));
     }
 
@@ -52,8 +61,8 @@ public class UserService {
     }
 
     public boolean verifyPassword(String email, String rawPassword) {
-        User user = repository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        User user = getByEmail(email);
+        if (user.getPassword() == null) return false;
         return new BCryptPasswordEncoder().matches(rawPassword, user.getPassword());
     }
 

@@ -1,13 +1,15 @@
 package org.example.ai_auth_service.grpc;
 
 import com.google.protobuf.Empty;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import net.devh.boot.grpc.server.service.GrpcService;
 import org.example.ai_auth_service.dto.JwtAuthenticationResponse;
+import org.example.ai_auth_service.dto.RefreshTokenRequest;
 import org.example.ai_auth_service.dto.SignInRequest;
 import org.example.ai_auth_service.dto.SignUpRequest;
 import org.example.ai_auth_service.entity.User;
 import org.example.ai_auth_service.proto.auth.*;
+import org.springframework.grpc.server.service.GrpcService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.example.ai_auth_service.services.AuthenticationService;
 import org.example.ai_auth_service.services.UserService;
@@ -31,7 +33,7 @@ public class AuthGrpcService extends AuthGrpc.AuthImplBase {
         User user = userService.getByEmail(email);
         String phoneNumber = user.getPhoneNumber();
         SignInRequest signInRequest = new SignInRequest();
-        signInRequest.setPhoneNumber(phoneNumber);
+        signInRequest.setEmail(email);
         signInRequest.setPassword(password);
         JwtAuthenticationResponse jwtResponse = authenticationService.signIn(signInRequest);
         TokenPair tokenPair = TokenPair.newBuilder()
@@ -58,19 +60,31 @@ public class AuthGrpcService extends AuthGrpc.AuthImplBase {
 
     @Override
     public void refresh(RefreshRequest request, StreamObserver<TokenPair> responseObserver) {
-        responseObserver.onCompleted();
+        RefreshTokenRequest dto = new RefreshTokenRequest();
+        dto.setRefreshToken(request.getRefreshToken());
+        try {
+            JwtAuthenticationResponse newTokens = authenticationService.refreshAccessToken(dto);
+            TokenPair tokenPair = TokenPair.newBuilder()
+                    .setAccessToken(newTokens.getToken())
+                    .setRefreshToken(newTokens.getRefreshToken())
+                    .build();
+            responseObserver.onNext(tokenPair);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.UNAUTHENTICATED.withDescription(e.getMessage()).asRuntimeException());
+        }
     }
 
     @Override
     public void changePassword(ChangePasswordRequest request, StreamObserver<Empty> responseObserver) {
         User currentUser = getCurrentUserFromContext();
         if (currentUser == null) {
-            responseObserver.onError(io.grpc.Status.UNAUTHENTICATED.asRuntimeException());
+            responseObserver.onError(Status.UNAUTHENTICATED.asRuntimeException());
             return;
         }
         boolean verified = userService.verifyPassword(currentUser.getEmail(), request.getOldPassword());
         if (!verified) {
-            responseObserver.onError(io.grpc.Status.INVALID_ARGUMENT.withDescription("Old password is incorrect").asRuntimeException());
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Old password is incorrect").asRuntimeException());
             return;
         }
         currentUser.setPassword(new BCryptPasswordEncoder().encode(request.getNewPassword()));

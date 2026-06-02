@@ -1,10 +1,6 @@
 package org.example.ai_auth_service.grpc;
 
-import io.grpc.Metadata;
-import io.grpc.ServerCall;
-import io.grpc.ServerCallHandler;
-import io.grpc.ServerInterceptor;
-import net.devh.boot.grpc.server.interceptor.GrpcGlobalServerInterceptor;
+import io.grpc.*;
 import org.apache.commons.lang3.StringUtils;
 import org.example.ai_auth_service.services.JwtService;
 import org.example.ai_auth_service.services.UserService;
@@ -13,12 +9,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+import org.springframework.grpc.server.GlobalServerInterceptor;
 
 @Component
-@GrpcGlobalServerInterceptor
-public class GrpcAuthInterceptor implements ServerInterceptor {
+@GlobalServerInterceptor
+public class JwtGrpcInterceptor implements ServerInterceptor {
 
-    private static final Metadata.Key<String> AUTHORIZATION =
+    private static final Metadata.Key<String> AUTHORIZATION_HEADER =
             Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER);
 
     @Autowired
@@ -32,10 +29,12 @@ public class GrpcAuthInterceptor implements ServerInterceptor {
             ServerCall<ReqT, RespT> call,
             Metadata headers,
             ServerCallHandler<ReqT, RespT> next) {
-        String authHeader = headers.get(AUTHORIZATION);
+
+        String authHeader = headers.get(AUTHORIZATION_HEADER);
         if (StringUtils.isNotEmpty(authHeader) && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             String username = jwtService.extractUserName(token);
+
             if (StringUtils.isNotEmpty(username) && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userService.userDetailsService().loadUserByUsername(username);
                 if (jwtService.validateToken(token, userDetails)) {
@@ -45,6 +44,7 @@ public class GrpcAuthInterceptor implements ServerInterceptor {
                 }
             }
         }
+
         return next.startCall(call, headers);
     }
 }

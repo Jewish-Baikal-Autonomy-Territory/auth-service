@@ -16,4 +16,6 @@ public class JwtAuthenticationResponse {
     @Schema(description = "JWT", example = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTYyMjUwNj...")
     private String token;
 
+    @Schema(description = "Refresh token", example = "550e8400-e29b-41d4-a716-446655440000")
+    private String refreshToken;
 }

@@ -3,22 +3,34 @@ package org.example.ai_auth_service.services;
 import lombok.RequiredArgsConstructor;
 import org.example.ai_auth_service.dto.ChangePasswordRequest;
 import org.example.ai_auth_service.dto.JwtAuthenticationResponse;
+import org.example.ai_auth_service.dto.RefreshTokenRequest;
 import org.example.ai_auth_service.dto.SignInRequest;
 import org.example.ai_auth_service.dto.SignUpRequest;
 import org.example.ai_auth_service.entity.JWT;
+import org.example.ai_auth_service.entity.RefreshToken;
 import org.example.ai_auth_service.entity.Role;
 import org.example.ai_auth_service.entity.User;
 import org.example.ai_auth_service.entity.UserVerification;
+import org.example.ai_auth_service.event.EmailVerificationEvent;
+import org.example.ai_auth_service.event.PasswordChangedEvent;
+import org.example.ai_auth_service.event.UserLoggedInEvent;
+import org.example.ai_auth_service.event.UserRegisteredEvent;
+import org.example.ai_auth_service.messaging.KafkaEventProducer;
 import org.example.ai_auth_service.repository.JwtRepository;
+import org.example.ai_auth_service.repository.RefreshTokenRepository;
 import org.example.ai_auth_service.repository.UserVerificationRepository;
 import org.example.ai_auth_service.util.VerificationCodeGenerator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,9 +40,14 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtRepository jwtRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final EmailService emailService;
     private final UserVerificationRepository userVerificationRepository;
     private final VerificationService verificationService;
+    private final KafkaEventProducer kafkaEventProducer;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshExpirationMillis;
 
     public JwtAuthenticationResponse signUp(SignUpRequest request) {
         User user = new User();
@@ -45,59 +62,86 @@ public class AuthenticationService {
         user.setCreatedAt(new Date());
 
         userService.create(user);
+        UserRegisteredEvent registeredEvent = new UserRegisteredEvent(
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getPhoneNumber()
+        );
+        kafkaEventProducer.sendUserRegisteredEvent(registeredEvent);
 
         VerificationCodeGenerator codeGenerator = new VerificationCodeGenerator();
         String verificationCode = codeGenerator.generateCode();
         saveVerificationCode(user.getEmail(), verificationCode);
-        emailService.sendVerificationEmail(user.getEmail(), verificationCode);
 
-        var jwt = jwtService.generateToken(user.getPhoneNumber());
-        saveJwtToken(jwt, user);
+        EmailVerificationEvent event = new EmailVerificationEvent(user.getEmail(), verificationCode);
+        kafkaEventProducer.sendEmailVerificationEvent(event);
 
-        return new JwtAuthenticationResponse(jwt);
+        String accessToken = jwtService.generateToken(user.getUsername());
+        String refreshToken = generateRefreshToken(user);
+        saveJwtToken(accessToken, user);
+
+        return new JwtAuthenticationResponse(accessToken, refreshToken);
     }
 
     public JwtAuthenticationResponse signIn(SignInRequest request) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-                request.getPhoneNumber(),
+                request.getEmail(),
                 request.getPassword()
         ));
 
-        var user = userService.getByUsername(request.getPhoneNumber());
-        var jwt = jwtService.generateToken(user.getUsername());
-        saveJwtToken(jwt, user);
 
-        return new JwtAuthenticationResponse(jwt);
+        User user = userService.getByUsername(request.getEmail());
+        String accessToken = jwtService.generateToken(user.getUsername());
+        String refreshToken = generateRefreshToken(user);
+        UserLoggedInEvent loginEvent = new UserLoggedInEvent(
+                user.getEmail(),
+                Instant.now()
+        );
+        kafkaEventProducer.sendUserLoggedInEvent(loginEvent);
+        saveJwtToken(accessToken, user);
+
+        return new JwtAuthenticationResponse(accessToken, refreshToken);
+    }
+
+    @Transactional
+    public JwtAuthenticationResponse refreshAccessToken(RefreshTokenRequest request) {
+        String token = request.getRefreshToken();
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
+                .orElseThrow(() -> new AuthenticationServiceException("Invalid refresh token"));
+
+        if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
+            refreshTokenRepository.delete(refreshToken);
+            throw new AuthenticationServiceException("Refresh token expired");
+        }
+
+        User user = refreshToken.getUser();
+        String newAccessToken = jwtService.generateToken(user.getUsername());
+
+        saveJwtToken(newAccessToken, user);
+
+        return new JwtAuthenticationResponse(newAccessToken, token);
     }
 
     public JwtAuthenticationResponse changePassword(ChangePasswordRequest request) {
-        boolean valid = passwordEncoder.matches(request.getOldPassword(), request.getNewPassword());
-        if (!valid) {
-            String oldPassword = request.getOldPassword();
-            boolean verify = userService.verifyPassword(request.getToken().getUser().getEmail(), oldPassword);
-            if (verify) {
-                String newPassword = request.getNewPassword();
-                String confirmeedNewPassword = request.getConfirmedNewPassword();
-                if (newPassword.equals(confirmeedNewPassword)) {
-                    var existing = userService.getByEmail(request.getToken().getUser().getEmail());
-                    existing.setPassword(newPassword);
-                    userService.save(existing);
-                } else {
-                    throw new AuthenticationServiceException("New Passwords do not match");
-                }
-            } else {
-                throw new AuthenticationServiceException("Old Password do not match");
-            }
-        } else {
-            throw new AuthenticationServiceException("Old Passwords do not match");
+        User user = userService.getByEmail(request.getToken().getUser().getEmail());
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+            throw new AuthenticationServiceException("Old password is incorrect");
         }
-        var user = userService.getByEmail(request.getToken().getUser().getEmail());
-        var jwt = jwtService.generateToken(user.getUsername());
-        saveJwtToken(jwt, user);
+        if (!request.getNewPassword().equals(request.getConfirmedNewPassword())) {
+            throw new AuthenticationServiceException("New passwords do not match");
+        }
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userService.save(user);
 
-        return new JwtAuthenticationResponse(jwt);
+        String accessToken = jwtService.generateToken(user.getUsername());
+        String refreshToken = generateRefreshToken(user);
+        saveJwtToken(accessToken, user);
+        PasswordChangedEvent pwdEvent = new PasswordChangedEvent(user.getEmail(), Instant.now());
+        kafkaEventProducer.sendPasswordChangedEvent(pwdEvent);
+
+        return new JwtAuthenticationResponse(accessToken, refreshToken);
     }
-
 
     public boolean verifyEmail(String email, String code) {
         boolean valid = verificationService.verifyCode(email, code);
@@ -128,5 +172,15 @@ public class AuthenticationService {
         verificationEntity.setEmail(email);
         verificationEntity.setVerificationCode(verificationCode);
         userVerificationRepository.save(verificationEntity);
+    }
+
+    private String generateRefreshToken(User user) {
+        refreshTokenRepository.findByUser(user).ifPresent(refreshTokenRepository::delete);
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setUser(user);
+        refreshToken.setExpiryDate(Instant.now().plusMillis(refreshExpirationMillis));
+        refreshTokenRepository.save(refreshToken);
+        return refreshToken.getToken();
     }
 }

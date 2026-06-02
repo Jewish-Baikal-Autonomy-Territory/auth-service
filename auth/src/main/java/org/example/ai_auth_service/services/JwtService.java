@@ -23,15 +23,15 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long EXPIRATION_TIME;
 
-    public String generateToken(String phone) {
+    public String generateToken(String email) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, phone);
+        return createToken(claims, email);
     }
 
-    public String createToken(Map<String, Object> claims, String phone) {
+    public String createToken(Map<String, Object> claims, String email) {
         return Jwts.builder()
                 .setClaims(claims)
-                .setSubject(phone)
+                .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSecretKey(), SignatureAlgorithm.HS256)
