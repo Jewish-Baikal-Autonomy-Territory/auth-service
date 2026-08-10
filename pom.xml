@@ -20,7 +20,7 @@
     <properties>
         <java.version>25</java.version>
         <maven.version>3.9.12</maven.version>
-        <springdoc.version>3.0.3</springdoc.version>
+        <springdoc.version>3.1.0</springdoc.version>
         <jjwt.version>0.13.0</jjwt.version>
         <commons-lang3.version>3.20.0</commons-lang3.version>
         <pmd.version>7.21.0</pmd.version>
@@ -65,7 +65,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>3.0.3</version>
+            <version>3.1.0</version>
         </dependency>
 
 
